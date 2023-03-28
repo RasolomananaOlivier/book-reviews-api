@@ -2,9 +2,11 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Requests\LoginRequest;
 use App\Http\Requests\RegisterRequest;
 use App\Models\User;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Hash;
 
 class AuthController extends Controller
 {
@@ -25,15 +27,36 @@ class AuthController extends Controller
     }
 
     // login user
-    public function login(Request $request)
+    public function login(LoginRequest $request)
     {
-        $credentials = $request->only(['email', 'password']);
+        $user = User::where('email', $request->email)->first();
 
-        if (!$token = auth()->attempt($credentials)) {
-            return response()->json(['error' => 'Unauthorized'], 401);
+        if (!$user) {
+            return response()->json([
+                'data' => null,
+                'message' => 'User not found',
+            ], 404);
         }
 
-        return $this->respondWithToken($token);
+        // verify password with bcrypt
+        if (!Hash::check($request->password, $user->password)) {
+            return response()->json([
+                'data' => null,
+                'message' => 'Invalid password',
+            ], 401);
+        }
+
+        // generate token
+        $token = $user->createToken('auth_token')->plainTextToken;
+
+        // send response
+        return response()->json([
+            'data' => [
+                'user' => $user,
+                'access_token' => $token,
+            ],
+            'message' => 'Successfully logged in',
+        ], 200);
     }
 
     // get authenticated user
